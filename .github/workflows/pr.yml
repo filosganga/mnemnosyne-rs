@@ -6,10 +6,10 @@ on:
       - main
       - release/*
 
-run-name: "pr-${{ github.event.pull_request.number || github.sha }}"
+run-name: "pr-${{ github.event.pull_request.number }}"
 
 concurrency:
-  group: pr-${{ github.event.pull_request.number || github.ref }}
+  group: pr-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
 env:
