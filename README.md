@@ -173,9 +173,120 @@ mnemosyne.invalidate(signal_id).await?;
 
 ## Configuration
 
+### Configuration Parameters
+
+When creating a `Config`, you need to specify four parameters:
+
+```rust
+let config = Config::new(
+    processor_id,           // Unique ID for this processor/process type
+    max_processing_time,    // Maximum time allowed for processing
+    ttl,                    // Optional time-to-live for records
+    poll_strategy,          // How to poll for in-progress processes
+);
+```
+
+### Understanding `processor_id`
+
+The `processor_id` identifies the **type of process** you're protecting, not the individual instance.
+
+**Key points:**
+
+- Use the same `processor_id` for all instances handling the same type of work
+- Different process types should use different `processor_id` values
+- Allows multiple Mnemosyne instances to share the same DynamoDB table
+
+**Examples:**
+
+```rust
+// Different process types can share the same table
+let email_processor_id = Uuid::parse_str("550e8400-e29b-41d4-a716-446655440000")?;
+let webhook_processor_id = Uuid::parse_str("6ba7b810-9dad-11d1-80b4-00c04fd430c8")?;
+let payment_processor_id = Uuid::parse_str("7c9e6679-7425-40de-944b-e07fc1f90ae7")?;
+
+// Each Mnemosyne instance handles a different process type
+let email_mnemosyne = Mnemosyne::new(persistence.clone(), Config::new(
+    email_processor_id, // Deduplicates email sending
+    Duration::from_secs(60),
+    Some(Duration::from_secs(86400)),
+    poll_strategy,
+));
+
+let webhook_mnemosyne = Mnemosyne::new(persistence.clone(), Config::new(
+    webhook_processor_id, // Deduplicates webhook calls
+    Duration::from_secs(30),
+    Some(Duration::from_secs(86400)),
+    poll_strategy,
+));
+```
+
+The composite key is `(signal_id, processor_id)`, so:
+
+- Same signal across different processors = independent processes
+- Same signal for same processor = deduplicated
+
+### Choosing `max_processing_time`
+
+This determines how long a process can run before being considered timed out and allowing retry.
+
+**Guidelines:**
+
+- Set this to your **worst-case processing time** + buffer
+- If your operation typically takes 30s, set to 60-120s
+- Too short: premature timeouts cause duplicate execution
+- Too long: stuck processes delay retry
+
+**Examples:**
+
+```rust
+// Fast API calls (< 5s typical)
+Duration::from_secs(30)
+
+// Database operations (5-30s typical)
+Duration::from_secs(120)
+
+// Heavy computations or external API calls (30-300s typical)
+Duration::from_secs(600)
+```
+
+### Choosing TTL
+
+TTL automatically cleans up old process records from DynamoDB.
+
+**Guidelines:**
+
+- Set based on how long you need to maintain deduplication
+- Use `None` for permanent deduplication if needed
+- Consider your use case:
+  - **Event processing**: 1-7 days (prevent replay attacks)
+  - **API idempotency**: 24 hours (prevent duplicate requests)
+  - **Long-running workflows**: 30+ days (maintain state across restarts)
+  - **Audit trail**: `None` (keep records forever)
+
+**Examples:**
+
+```rust
+// Short-term deduplication (API requests)
+Some(Duration::from_secs(86400))  // 24 hours
+
+// Medium-term deduplication (event processing)
+Some(Duration::from_secs(86400 * 7))  // 7 days
+
+// Long-term deduplication (workflow state)
+Some(Duration::from_secs(86400 * 30))  // 30 days
+
+// Permanent deduplication (audit trail)
+None
+```
+
 ### Poll Strategies
 
-**Linear backoff:**
+When a process is already running, other instances will poll and wait for completion.
+
+#### Linear Backoff
+
+Fixed delay between each poll attempt:
+
 ```rust
 PollStrategy::linear(
     Duration::from_millis(100), // delay between polls
@@ -183,27 +294,87 @@ PollStrategy::linear(
 )
 ```
 
-**Exponential backoff:**
+**Use when:**
+
+- Processing time is consistent and predictable
+- You want simple, predictable behavior
+- Low latency is critical
+
+#### Exponential Backoff
+
+Delay increases exponentially with each attempt:
+
 ```rust
 PollStrategy::backoff(
     Duration::from_millis(50),  // base delay
-    2.0,                         // multiplier
+    2.0,                         // multiplier (delay doubles each attempt)
     Duration::from_secs(15),     // max total poll duration
 )
 ```
 
-### TTL Configuration
+**Use when:**
 
-Set a TTL to automatically clean up old records:
+- Processing time is variable
+- You want to reduce DynamoDB read load
+- You expect most processes to complete quickly
+
+**Choosing poll parameters:**
+
+- **Base delay/delay**: Start with 50-100ms for responsive systems
+- **Max poll duration**: Should be ≤ `max_processing_time`
+- If max poll duration is exceeded, the waiting process will retry as a new process
+- Trade-off: Shorter delays = more responsive but higher DynamoDB costs
+
+### Complete Example
 
 ```rust
 let config = Config::new(
-    processor_id,
-    Duration::from_secs(300),
-    Some(Duration::from_secs(86400 * 7)), // 7 day TTL
-    poll_strategy,
+    Uuid::new_v4(),                    // processor_id: unique per process type
+    Duration::from_secs(300),          // max_processing_time: 5 minutes
+    Some(Duration::from_secs(86400 * 7)), // ttl: 7 days
+    PollStrategy::backoff(
+        Duration::from_millis(100),    // start with 100ms delay
+        2.0,                            // double delay each attempt
+        Duration::from_secs(60),       // poll for up to 1 minute
+    ),
 );
 ```
+
+## Type Requirements
+
+Mnemosyne requires that `Id`, `ProcessorId`, and `A` (the result type) all have a `'static` lifetime bound. This means they must be owned types (like `String`, `Uuid`, custom structs) rather than borrowed references.
+
+### Why `'static` is required
+
+The `'static` requirement comes from two fundamental constraints:
+
+1. **Trait object with generics**: Mnemosyne uses `Arc<dyn Persistence<Id, ProcessorId, A>>` for runtime polymorphism, allowing different persistence implementations. When trait objects have generic parameters, Rust requires those parameters to be `'static` to ensure type safety across async boundaries.
+
+2. **Persistence and deserialization**: All three types must be serialized to and deserialized from DynamoDB:
+   - When storing a process, `Id`, `ProcessorId`, and `A` are serialized to DynamoDB
+   - When fetching, new instances are deserialized from bytes
+   - The library returns owned instances to the caller, not borrowed data
+
+### What this means for users
+
+You must use owned types for IDs and results:
+
+```rust
+// ✅ Works - owned types
+let mnemosyne: Mnemosyne<Uuid, Uuid, String> = ...;
+let mnemosyne: Mnemosyne<String, String, MyStruct> = ...;
+
+// ❌ Won't compile - borrowed types
+let mnemosyne: Mnemosyne<&str, &str, String> = ...;
+struct Borrowed<'a> { data: &'a str }
+let mnemosyne: Mnemosyne<Uuid, Uuid, Borrowed> = ...;
+```
+
+In practice, this is not a limitation because:
+
+- IDs are typically `Uuid` (which is `Copy`) or `String`
+- Results must be serializable anyway for DynamoDB storage
+- Memoized values need to outlive the original computation
 
 ## Architecture
 
@@ -213,6 +384,7 @@ Mnemosyne uses a two-phase commit protocol:
 2. **Phase 2 - Complete Processing**: Updates the record with `completedAt` and memoized result
 
 Process states:
+
 - **New**: Never seen before, proceed with processing
 - **Running**: Currently being processed by another instance, poll and wait
 - **Completed**: Already processed, return memoized result
