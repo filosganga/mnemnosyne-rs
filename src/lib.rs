@@ -1,8 +1,9 @@
 //! Mnemosyne - A library for deduplicating process execution
 //!
-//! Named after the Greek goddess of memory, Mnemosyne prevents duplicate processing
-//! of signals/messages across distributed systems by tracking which messages have been
-//! processed by each processor instance.
+//! Named after the Greek goddess of memory, Mnemosyne provides best-effort exactly-once
+//! processing semantics by preventing duplicate execution of signals/messages across
+//! distributed systems. It tracks which messages have been processed using DynamoDB's
+//! strong consistency guarantees to achieve at-least-once delivery with deduplication.
 //!
 //! # Example
 //!

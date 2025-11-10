@@ -46,8 +46,13 @@ where
         }
     }
 
-    /// Try to start processing a signal
-    /// Returns either a New outcome with a completion callback, or Duplicate with memoized value
+    /// Try to start processing a signal.
+    ///
+    /// Atomically attempts to claim processing of a signal. Returns either:
+    /// - `Outcome::New` with a completion callback if this is the first processor
+    /// - `Outcome::Duplicate` with memoized value if already processed
+    ///
+    /// This provides the low-level API for manual control. Most users should use `protect()` instead.
     #[cfg_attr(feature = "tracing", instrument(skip(self), fields(signal_id = ?id)))]
     pub async fn try_start_process(&self, id: Id) -> Result<Outcome<A>, Error> {
         let now = SystemTime::now();
@@ -103,8 +108,11 @@ where
         }
     }
 
-    /// Protect an effect - ensures it runs at most once
-    /// Returns the result whether new or duplicate
+    /// Protect an effect from duplicate execution across distributed systems.
+    ///
+    /// Provides at-least-once semantics with best-effort exactly-once through
+    /// distributed deduplication. Returns the result whether from fresh execution
+    /// or memoized from a previous run.
     #[cfg_attr(feature = "tracing", instrument(skip(self, f), fields(signal_id = ?id)))]
     pub async fn protect<F, Fut>(&self, id: Id, f: F) -> Result<A, Error>
     where

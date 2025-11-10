@@ -189,7 +189,7 @@ just set-version
 
 We follow [Conventional Commits](https://www.conventionalcommits.org/):
 
-```
+```text
 <type>: <description>
 
 [optional body]
@@ -261,10 +261,11 @@ Releases are managed by maintainers. The process is:
 All public APIs must have documentation:
 
 ```rust
-/// Protects an effect from being executed multiple times.
+/// Protects an effect from duplicate execution across distributed systems.
 ///
-/// This method wraps your processing logic and ensures it runs at most once
-/// for the given signal ID.
+/// This method provides at-least-once semantics with best-effort exactly-once
+/// through distributed deduplication. If the signal has already been processed,
+/// returns the memoized result instead of re-executing.
 ///
 /// # Arguments
 ///
@@ -317,7 +318,7 @@ async fn test_descriptive_name() {
 - Test one thing per test
 - Use descriptive test names
 - Clean up resources (DynamoDB tables, etc.)
-- Use atomic counters to verify exactly-once semantics
+- Use atomic counters to verify deduplication behavior (exactly-once in normal operation)
 - Test concurrent scenarios for race conditions
 
 ## Architecture Overview

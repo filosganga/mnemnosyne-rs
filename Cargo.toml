@@ -1,12 +1,12 @@
 [package]
 name = "mnemosyne-rs"
 version = "0.1.0"
-description = "Distributed process deduplication with exactly-once semantics using DynamoDB"
+description = "Distributed process deduplication with best-effort exactly-once semantics using DynamoDB"
 readme = "README.md"
 repository = "https://github.com/filosganga/mnemosyne-rs"
 homepage = "https://github.com/filosganga/mnemosyne-rs"
 documentation = "https://docs.rs/mnemosyne-rs"
-keywords = ["deduplication", "dynamodb", "distributed", "exactly-once", "idempotency"]
+keywords = ["deduplication", "dynamodb", "distributed", "idempotency", "at-least-once"]
 categories = ["asynchronous", "database"]
 exclude = ["flake.nix", "flake.lock", "docker-compose.yml", ".envrc", "justfile", "CONTRIBUTING.md"]
 

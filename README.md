@@ -6,13 +6,35 @@ Named after the Greek goddess of memory, Mnemosyne prevents duplicate processing
 
 ## Features
 
-- **Exactly-once processing semantics** - Guarantees that a signal is processed at most once per processor instance
+- **Best-effort exactly-once processing** - Provides at-least-once semantics with distributed deduplication to achieve effectively-once execution
 - **Two-phase commit** - Uses DynamoDB's strong consistency to implement reliable deduplication
 - **Memoization** - Stores and returns the result of previous processing
 - **Timeout handling** - Automatically retries stuck processes after a configurable timeout
 - **TTL support** - Automatic cleanup of old records using DynamoDB's native TTL feature
 - **Configurable polling** - Linear or exponential backoff strategies for waiting on in-progress processes
 - **Generic and type-safe** - Works with any serializable types for IDs and results
+
+## Processing Guarantees
+
+Mnemosyne provides **exactly-once processing in normal operations**, with **at-least-once as the failure mode**.
+
+### Normal Operation (Exactly-Once)
+
+Under normal conditions, when processes complete successfully:
+
+- A signal is processed exactly once across all processor instances
+- Results are memoized and returned for subsequent requests
+- No duplicate execution occurs, even with concurrent requests
+
+### Failure Mode (At-Least-Once)
+
+In case of process crashes or failures before completion:
+
+- The signal may be retried by the same or different processor
+- The timeout mechanism allows recovery from stuck processes
+- Your processing logic must be idempotent to handle potential retries
+
+This design ensures **reliability** (signals are never lost) while providing **best-effort exactly-once** semantics. The two-phase commit protocol with DynamoDB's strong consistency guarantees that in the absence of failures, each signal executes exactly once.
 
 ## Use Cases
 
@@ -111,7 +133,7 @@ aws dynamodb update-time-to-live \
 
 ### Basic Usage with `protect`
 
-The `protect` method wraps your processing logic and ensures it runs at most once:
+The `protect` method wraps your processing logic and deduplicates execution:
 
 ```rust
 let result = mnemosyne.protect(signal_id, || async {
@@ -248,6 +270,7 @@ async fn main() {
 ### Tracing Levels
 
 The library emits traces at different levels:
+
 - `DEBUG` - Low-level operations (polling attempts, state checks)
 - `INFO` - Significant events (new process, completed, duplicate detected)
 - `WARN` - Recoverable issues (timeouts, polling exceeded)
@@ -275,6 +298,7 @@ RUST_LOG=mnemosyne_rs=debug cargo run
 ### Trace Spans
 
 Key operations are instrumented with spans that include signal_id and processor_id fields:
+
 - `try_start_process` - Attempting to start processing a signal
 - `protect` - Protecting an effect from duplicate execution
 - `invalidate` - Invalidating a previously processed signal
