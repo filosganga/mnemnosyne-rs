@@ -1,0 +1,37 @@
+{
+  // markdownlint-cli2 configuration
+  "config": {
+    // Default rules (all enabled)
+    "default": true,
+
+    // MD024: Multiple headings with the same content
+    // Allow duplicate headings if they're not siblings (not at the same level)
+    "MD024": {
+      "siblings_only": true
+    },
+
+    // MD013: Line length
+    // Disabled as it can be overly strict for documentation
+    "MD013": false,
+
+    // MD033: Inline HTML
+    // Allow HTML in markdown (useful for complex formatting)
+    "MD033": false,
+
+    // MD041: First line in file should be a top-level heading
+    // Disabled to allow flexibility in document structure
+    "MD041": false
+  },
+
+  // Globs to process
+  "globs": [
+    "**/*.md"
+  ],
+
+  // Globs to ignore
+  "ignores": [
+    "node_modules/**",
+    "target/**",
+    ".git/**"
+  ]
+}
