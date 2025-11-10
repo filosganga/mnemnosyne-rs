@@ -201,3 +201,181 @@ impl<ProcessorId> Config<ProcessorId> {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_expiration_is_expired_past() {
+        let past_time = SystemTime::now() - Duration::from_secs(10);
+        let expiration = Expiration::new(past_time);
+        assert!(expiration.is_expired());
+    }
+
+    #[test]
+    fn test_expiration_is_expired_future() {
+        let future_time = SystemTime::now() + Duration::from_secs(10);
+        let expiration = Expiration::new(future_time);
+        assert!(!expiration.is_expired());
+    }
+
+    #[test]
+    fn test_expiration_from_duration() {
+        let expiration = Expiration::from_duration(Duration::from_secs(1));
+        // Should not be expired immediately
+        assert!(!expiration.is_expired());
+    }
+
+    #[test]
+    fn test_process_is_completed() {
+        let process: Process<&str, &str, String> =
+            Process::new("id", "processor", SystemTime::now());
+        assert!(!process.is_completed());
+
+        let mut completed_process = process.clone();
+        completed_process.completed_at = Some(SystemTime::now());
+        assert!(completed_process.is_completed());
+    }
+
+    #[test]
+    fn test_process_is_expired_no_expiration() {
+        let process: Process<&str, &str, String> =
+            Process::new("id", "processor", SystemTime::now());
+        assert!(!process.is_expired());
+    }
+
+    #[test]
+    fn test_process_is_expired_past() {
+        let mut process: Process<&str, &str, String> =
+            Process::new("id", "processor", SystemTime::now());
+        let past_time = SystemTime::now() - Duration::from_secs(10);
+        process.expires_on = Some(Expiration::new(past_time));
+        assert!(process.is_expired());
+    }
+
+    #[test]
+    fn test_process_is_expired_future() {
+        let mut process: Process<&str, &str, String> =
+            Process::new("id", "processor", SystemTime::now());
+        let future_time = SystemTime::now() + Duration::from_secs(10);
+        process.expires_on = Some(Expiration::new(future_time));
+        assert!(!process.is_expired());
+    }
+
+    #[test]
+    fn test_process_is_timeout_completed() {
+        let mut process: Process<&str, &str, String> =
+            Process::new("id", "processor", SystemTime::now());
+        process.completed_at = Some(SystemTime::now());
+        // Completed processes should never timeout
+        assert!(!process.is_timeout(Duration::from_secs(0)));
+    }
+
+    #[test]
+    fn test_process_is_timeout_not_exceeded() {
+        let process: Process<&str, &str, String> =
+            Process::new("id", "processor", SystemTime::now());
+        let max_processing_time = Duration::from_secs(10);
+        assert!(!process.is_timeout(max_processing_time));
+    }
+
+    #[test]
+    fn test_process_is_timeout_exceeded() {
+        let past_time = SystemTime::now() - Duration::from_secs(20);
+        let process: Process<&str, &str, String> = Process::new("id", "processor", past_time);
+        let max_processing_time = Duration::from_secs(10);
+        assert!(process.is_timeout(max_processing_time));
+    }
+
+    #[test]
+    fn test_process_status_running() {
+        let process: Process<&str, &str, String> =
+            Process::new("id", "processor", SystemTime::now());
+        let status = process.status(Duration::from_secs(60));
+        assert_eq!(status, ProcessStatus::Running);
+    }
+
+    #[test]
+    fn test_process_status_completed() {
+        let mut process = Process::new("id", "processor", SystemTime::now());
+        process.completed_at = Some(SystemTime::now());
+        process.memoized = Some("result".to_string());
+
+        let status = process.status(Duration::from_secs(60));
+        match status {
+            ProcessStatus::Completed(value) => assert_eq!(*value, "result"),
+            _ => panic!("Expected Completed status"),
+        }
+    }
+
+    #[test]
+    fn test_process_status_expired() {
+        let mut process: Process<&str, &str, String> =
+            Process::new("id", "processor", SystemTime::now());
+        let past_time = SystemTime::now() - Duration::from_secs(10);
+        process.expires_on = Some(Expiration::new(past_time));
+
+        let status = process.status(Duration::from_secs(60));
+        assert_eq!(status, ProcessStatus::Expired);
+    }
+
+    #[test]
+    fn test_process_status_timeout() {
+        let past_time = SystemTime::now() - Duration::from_secs(20);
+        let process: Process<&str, &str, String> = Process::new("id", "processor", past_time);
+
+        let status = process.status(Duration::from_secs(10));
+        assert_eq!(status, ProcessStatus::Timeout);
+    }
+
+    #[test]
+    fn test_process_status_priority_order() {
+        // Test that status checks happen in the right order:
+        // 1. Completed (if memoized value exists)
+        // 2. Expired
+        // 3. Timeout
+        // 4. Running
+
+        // Create a process that is both expired and timed out
+        let past_time = SystemTime::now() - Duration::from_secs(20);
+        let mut process: Process<&str, &str, String> = Process::new("id", "processor", past_time);
+
+        let past_expiration = SystemTime::now() - Duration::from_secs(10);
+        process.expires_on = Some(Expiration::new(past_expiration));
+
+        // Should return Expired (higher priority than Timeout)
+        let status = process.status(Duration::from_secs(10));
+        assert_eq!(status, ProcessStatus::Expired);
+    }
+
+    #[test]
+    fn test_process_status_completed_overrides_expired() {
+        // A completed process with memoized value should return Completed
+        // even if it's expired
+        let mut process = Process::new("id", "processor", SystemTime::now());
+        process.completed_at = Some(SystemTime::now());
+        process.memoized = Some("result".to_string());
+
+        let past_time = SystemTime::now() - Duration::from_secs(10);
+        process.expires_on = Some(Expiration::new(past_time));
+
+        let status = process.status(Duration::from_secs(60));
+        match status {
+            ProcessStatus::Completed(value) => assert_eq!(*value, "result"),
+            _ => panic!("Expected Completed status to override Expired"),
+        }
+    }
+
+    #[test]
+    fn test_poll_strategy_linear_max_duration() {
+        let strategy = PollStrategy::linear(Duration::from_secs(1), Duration::from_secs(10));
+        assert_eq!(strategy.max_duration(), Duration::from_secs(10));
+    }
+
+    #[test]
+    fn test_poll_strategy_backoff_max_duration() {
+        let strategy = PollStrategy::backoff(Duration::from_secs(1), 2.0, Duration::from_secs(30));
+        assert_eq!(strategy.max_duration(), Duration::from_secs(30));
+    }
+}
