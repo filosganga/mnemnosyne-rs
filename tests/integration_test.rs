@@ -291,3 +291,116 @@ async fn test_invalidate() {
 
     delete_test_table(&client, &table_name).await;
 }
+
+#[tokio::test]
+async fn test_deduplication_without_memoization() {
+    let client = create_test_client().await;
+    let table_name = format!("test-mnemosyne-{}", Uuid::new_v4());
+
+    create_test_table(&client, &table_name).await;
+
+    let persistence = Arc::new(DynamoDbPersistence::new(client.clone(), table_name.clone()));
+
+    let config = Config::new(
+        Uuid::new_v4(),
+        Duration::from_secs(60),
+        Some(Duration::from_secs(3600)),
+        PollStrategy::linear(Duration::from_millis(100), Duration::from_secs(10)),
+    );
+
+    // Use () as the result type - no memoization needed
+    let mnemosyne: Mnemosyne<Uuid, Uuid, ()> = Mnemosyne::new(persistence, config);
+
+    let signal_id = Uuid::new_v4();
+    let counter = Arc::new(std::sync::atomic::AtomicU32::new(0));
+
+    // First call - should execute
+    let counter_clone = Arc::clone(&counter);
+    mnemosyne
+        .protect(signal_id, || async move {
+            counter_clone.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            Ok(()) // Return unit type
+        })
+        .await
+        .unwrap();
+
+    assert_eq!(counter.load(std::sync::atomic::Ordering::SeqCst), 1);
+
+    // Second call - should NOT execute (deduplication works)
+    let counter_clone = Arc::clone(&counter);
+    mnemosyne
+        .protect(signal_id, || async move {
+            counter_clone.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            Ok(())
+        })
+        .await
+        .unwrap();
+
+    // Counter should still be 1 - second call was deduplicated
+    assert_eq!(
+        counter.load(std::sync::atomic::Ordering::SeqCst),
+        1,
+        "Process should only execute once even without memoization"
+    );
+
+    delete_test_table(&client, &table_name).await;
+}
+
+#[tokio::test]
+async fn test_unit_type_with_concurrent_requests() {
+    let client = create_test_client().await;
+    let table_name = format!("test-mnemosyne-{}", Uuid::new_v4());
+
+    create_test_table(&client, &table_name).await;
+
+    let persistence = Arc::new(DynamoDbPersistence::new(client.clone(), table_name.clone()));
+
+    let config = Config::new(
+        Uuid::new_v4(),
+        Duration::from_secs(60),
+        Some(Duration::from_secs(3600)),
+        PollStrategy::backoff(Duration::from_millis(50), 1.5, Duration::from_secs(10)),
+    );
+
+    let mnemosyne = Arc::new(Mnemosyne::<Uuid, Uuid, ()>::new(persistence, config));
+    let signal_id = Uuid::new_v4();
+    let execution_count = Arc::new(std::sync::atomic::AtomicU32::new(0));
+
+    // Launch 20 concurrent requests with unit type
+    let mut handles = vec![];
+    for _ in 0..20 {
+        let mnemosyne_clone = Arc::clone(&mnemosyne);
+        let exec_count = Arc::clone(&execution_count);
+
+        let handle = tokio::spawn(async move {
+            mnemosyne_clone
+                .protect(signal_id, || async move {
+                    exec_count.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                    tokio::time::sleep(Duration::from_millis(50)).await;
+                    Ok(())
+                })
+                .await
+        });
+
+        handles.push(handle);
+    }
+
+    // Wait for all to complete
+    let results: Vec<_> = futures::future::join_all(handles).await;
+
+    // All should succeed
+    for result in results.iter() {
+        assert!(result.is_ok());
+        assert!(result.as_ref().unwrap().is_ok());
+    }
+
+    // Should only execute once
+    let executions = execution_count.load(std::sync::atomic::Ordering::SeqCst);
+    assert_eq!(
+        executions, 1,
+        "Process with unit type should only execute once across {} concurrent requests",
+        results.len()
+    );
+
+    delete_test_table(&client, &table_name).await;
+}
