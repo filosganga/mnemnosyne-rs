@@ -2,7 +2,9 @@ name: main
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
+      - release/*
 
 run-name: "main-${{ github.sha }}"
 
@@ -365,7 +367,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Need full history for git describe
+          fetch-depth: 0 # Need full history for git describe
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install just
