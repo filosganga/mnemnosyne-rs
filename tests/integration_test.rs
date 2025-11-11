@@ -134,7 +134,7 @@ async fn test_duplicate_process() {
 }
 
 #[tokio::test]
-async fn test_protect() {
+async fn test_once() {
     let client = create_test_client().await;
     let table_name = format!("test-mnemosyne-{}", Uuid::new_v4());
 
@@ -157,7 +157,7 @@ async fn test_protect() {
     // First call - should execute
     let counter_clone = Arc::clone(&counter);
     let result1 = mnemosyne
-        .protect(signal_id, || async move {
+        .once(signal_id, || async move {
             counter_clone.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
             Ok("computed-result".to_string())
         })
@@ -170,7 +170,7 @@ async fn test_protect() {
     // Second call - should return memoized result without executing
     let counter_clone = Arc::clone(&counter);
     let result2 = mnemosyne
-        .protect(signal_id, || async move {
+        .once(signal_id, || async move {
             counter_clone.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
             Ok("should-not-execute".to_string())
         })
@@ -211,7 +211,7 @@ async fn test_concurrent_processing() {
 
         let handle = tokio::spawn(async move {
             mnemosyne_clone
-                .protect(signal_id, || async move {
+                .once(signal_id, || async move {
                     counter_clone.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
                     tokio::time::sleep(Duration::from_millis(100)).await;
                     Ok(format!("result-{}", i))
@@ -267,7 +267,7 @@ async fn test_invalidate() {
 
     // Process signal
     let result = mnemosyne
-        .protect(signal_id, || async { Ok("test-result".to_string()) })
+        .once(signal_id, || async { Ok("test-result".to_string()) })
         .await
         .unwrap();
     assert_eq!(result, "test-result");
@@ -317,7 +317,7 @@ async fn test_deduplication_without_memoization() {
     // First call - should execute
     let counter_clone = Arc::clone(&counter);
     mnemosyne
-        .protect(signal_id, || async move {
+        .once(signal_id, || async move {
             counter_clone.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
             Ok(()) // Return unit type
         })
@@ -329,7 +329,7 @@ async fn test_deduplication_without_memoization() {
     // Second call - should NOT execute (deduplication works)
     let counter_clone = Arc::clone(&counter);
     mnemosyne
-        .protect(signal_id, || async move {
+        .once(signal_id, || async move {
             counter_clone.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
             Ok(())
         })
@@ -374,7 +374,7 @@ async fn test_unit_type_with_concurrent_requests() {
 
         let handle = tokio::spawn(async move {
             mnemosyne_clone
-                .protect(signal_id, || async move {
+                .once(signal_id, || async move {
                     exec_count.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
                     tokio::time::sleep(Duration::from_millis(50)).await;
                     Ok(())

@@ -41,7 +41,7 @@
 //!
 //! // Use it to deduplicate processing
 //! let signal_id = Uuid::new_v4();
-//! let result = mnemosyne.protect(signal_id, || async {
+//! let result = mnemosyne.once(signal_id, || async {
 //!     // Your processing logic here
 //!     Ok("processed".to_string())
 //! }).await?;

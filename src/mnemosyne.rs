@@ -52,7 +52,7 @@ where
     /// - `Outcome::New` with a completion callback if this is the first processor
     /// - `Outcome::Duplicate` with memoized value if already processed
     ///
-    /// This provides the low-level API for manual control. Most users should use `protect()` instead.
+    /// This provides the low-level API for manual control. Most users should use `once()` instead.
     #[cfg_attr(feature = "tracing", instrument(skip(self), fields(signal_id = ?id)))]
     pub async fn try_start_process(&self, id: Id) -> Result<Outcome<A>, Error> {
         let now = SystemTime::now();
@@ -108,13 +108,13 @@ where
         }
     }
 
-    /// Protect an effect from duplicate execution across distributed systems.
+    /// Run an effect once across distributed systems.
     ///
     /// Provides at-least-once semantics with best-effort exactly-once through
     /// distributed deduplication. Returns the result whether from fresh execution
     /// or memoized from a previous run.
     #[cfg_attr(feature = "tracing", instrument(skip(self, f), fields(signal_id = ?id)))]
-    pub async fn protect<F, Fut>(&self, id: Id, f: F) -> Result<A, Error>
+    pub async fn once<F, Fut>(&self, id: Id, f: F) -> Result<A, Error>
     where
         F: FnOnce() -> Fut,
         Fut: Future<Output = Result<A, Error>>,

@@ -93,7 +93,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Use it to deduplicate processing
     let signal_id = Uuid::new_v4();
-    let result = mnemosyne.protect(signal_id, || async {
+    let result = mnemosyne.once(signal_id, || async {
         // Your processing logic here - will only run once
         println!("Processing signal...");
         Ok("processed".to_string())
@@ -131,12 +131,12 @@ aws dynamodb update-time-to-live \
 
 ## Usage Examples
 
-### Basic Usage with `protect`
+### Basic Usage with `once`
 
-The `protect` method wraps your processing logic and deduplicates execution:
+The `once` method wraps your processing logic and deduplicates execution:
 
 ```rust
-let result = mnemosyne.protect(signal_id, || async {
+let result = mnemosyne.once(signal_id, || async {
     // Your expensive operation here
     process_payment().await
 }).await?;
@@ -472,7 +472,7 @@ RUST_LOG=mnemosyne_rs=debug cargo run
 Key operations are instrumented with spans that include signal_id and processor_id fields:
 
 - `try_start_process` - Attempting to start processing a signal
-- `protect` - Protecting an effect from duplicate execution
+- `once` - Running an effect once across distributed systems
 - `invalidate` - Invalidating a previously processed signal
 - `poll_for_completion` - Polling for an in-progress process
 

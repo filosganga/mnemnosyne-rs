@@ -173,7 +173,7 @@ async fn test_concurrent_different_signals() {
 
             let handle = tokio::spawn(async move {
                 mnemosyne_clone
-                    .protect(signal_id, || async move {
+                    .once(signal_id, || async move {
                         exec_count.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
                         tokio::time::sleep(Duration::from_millis(10)).await;
                         Ok(format!("result-{}", signal_num))
@@ -312,12 +312,12 @@ async fn test_multiple_processors() {
 
     // Each processor should be able to process the same signal independently
     let result1 = mnemosyne1
-        .protect(signal_id, || async { Ok("processor-1-result".to_string()) })
+        .once(signal_id, || async { Ok("processor-1-result".to_string()) })
         .await
         .unwrap();
 
     let result2 = mnemosyne2
-        .protect(signal_id, || async { Ok("processor-2-result".to_string()) })
+        .once(signal_id, || async { Ok("processor-2-result".to_string()) })
         .await
         .unwrap();
 
@@ -370,7 +370,7 @@ async fn test_high_concurrency_stress() {
 
         let handle = tokio::spawn(async move {
             match mnemosyne_clone
-                .protect(signal_id, || async move {
+                .once(signal_id, || async move {
                     exec_count.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
                     // Simulate varying work durations
                     tokio::time::sleep(Duration::from_millis(10 + (i % 50))).await;
@@ -448,7 +448,7 @@ async fn test_staggered_concurrent_requests() {
                 tokio::time::sleep(Duration::from_millis(i * 5)).await;
 
                 mnemosyne_clone
-                    .protect(signal_id, || async move {
+                    .once(signal_id, || async move {
                         exec_count.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
                         tokio::time::sleep(Duration::from_millis(100)).await;
                         Ok(format!("result-wave-{}", wave))

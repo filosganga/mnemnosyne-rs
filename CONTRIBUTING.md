@@ -261,7 +261,7 @@ Releases are managed by maintainers. The process is:
 All public APIs must have documentation:
 
 ```rust
-/// Protects an effect from duplicate execution across distributed systems.
+/// Runs an effect once across distributed systems.
 ///
 /// This method provides at-least-once semantics with best-effort exactly-once
 /// through distributed deduplication. If the signal has already been processed,
@@ -270,7 +270,7 @@ All public APIs must have documentation:
 /// # Arguments
 ///
 /// * `id` - Unique identifier for the signal to process
-/// * `f` - The effect to protect (async closure)
+/// * `f` - The effect to run once (async closure)
 ///
 /// # Returns
 ///
@@ -279,11 +279,11 @@ All public APIs must have documentation:
 /// # Example
 ///
 /// ```no_run
-/// let result = mnemosyne.protect(signal_id, || async {
+/// let result = mnemosyne.once(signal_id, || async {
 ///     process_payment().await
 /// }).await?;
 /// ```
-pub async fn protect<F, Fut>(&self, id: Id, f: F) -> Result<A, Error>
+pub async fn once<F, Fut>(&self, id: Id, f: F) -> Result<A, Error>
 ```
 
 ## Testing Guidelines
@@ -304,7 +304,7 @@ async fn test_descriptive_name() {
     let signal_id = Uuid::new_v4();
 
     // Act
-    let result = mnemosyne.protect(signal_id, || async {
+    let result = mnemosyne.once(signal_id, || async {
         Ok("test".to_string())
     }).await;
 
