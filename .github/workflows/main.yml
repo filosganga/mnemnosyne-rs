@@ -131,12 +131,7 @@ jobs:
       - name: Run integration tests
         env:
           MNEMOSYNE_DYNAMODB_ENDPOINT: http://localhost:8000
-        run: cargo test --test integration_test
-
-      - name: Run correctness tests
-        env:
-          MNEMOSYNE_DYNAMODB_ENDPOINT: http://localhost:8000
-        run: cargo test --test correctness_test
+        run: cargo test --tests
 
   fmt:
     name: Rustfmt

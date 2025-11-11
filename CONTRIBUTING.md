@@ -91,7 +91,7 @@ Integration tests require DynamoDB Local:
 docker-compose up -d
 
 # Run integration tests
-cargo test -- --ignored
+cargo test --tests
 
 # Or use the just command that handles everything
 just test-all
