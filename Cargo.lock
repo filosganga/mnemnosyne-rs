@@ -1246,7 +1246,7 @@ dependencies = [
 
 [[package]]
 name = "mnemosyne-rs"
-version = "0.0.0-dev"
+version = "0.0.1"
 dependencies = [
  "async-trait",
  "aws-config",

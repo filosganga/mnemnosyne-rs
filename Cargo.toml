@@ -1,6 +1,6 @@
 [package]
 name = "mnemosyne-rs"
-version = "0.0.0-dev"
+version = "0.0.1"
 description = "Distributed process deduplication with best-effort exactly-once semantics using DynamoDB"
 readme = "README.md"
 repository = "https://github.com/filosganga/mnemosyne-rs"
