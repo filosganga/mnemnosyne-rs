@@ -355,37 +355,51 @@ jobs:
             echo "✅ All checks passed on main branch"
           fi
 
-  # Update version in Cargo.toml from git tags and commit
-  update-version:
-    name: Update Version
+  # Calculate next version
+  calculate-version:
+    name: Calculate Version
     runs-on: ubuntu-latest
-    needs: [main-checks]
+    needs:
+      - main-checks
     if: success() && !contains(github.event.head_commit.message, '[skip-version]')
-    permissions:
-      contents: write
+    outputs:
+      version: ${{ steps.semantic_version.outputs.version }}
+      version_tag: ${{ steps.semantic_version.outputs.version_tag }}
+      version_changed: ${{ steps.version_check.outputs.changed }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
-      - name: Set git config
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-      - uses: paulhatch/semantic-version@v5.4.0
-        id: semantic-version
+      - name: Calculate next version
+        uses: paulhatch/semantic-version@v5.4.0
+        id: semantic_version
         with:
           user_format_type: json
           debug: true
 
-      - name: Install just
-        uses: extractions/setup-just@v3
+      - name: Check if version changed
+        id: version_check
+        run: |
+          VERSION_TYPE="${{ steps.semantic_version.outputs.version_type }}"
+          echo "version_type=$VERSION_TYPE" >> $GITHUB_OUTPUT
 
-      # - name: Commit version update
-      #   if: steps.version.outputs.changed == 'true'
-      #   run: |
-      #     git add Cargo.toml Cargo.lock
-      #     git commit -m "chore: update version to ${{ steps.version.outputs.new }} [skip-version]"
-      #     git push
+          if [ "$VERSION_TYPE" != "none" ]; then
+            echo "changed=true" >> $GITHUB_OUTPUT
+            echo "Version changed: type=$VERSION_TYPE, new version=${{ steps.semantic_version.outputs.version }}"
+          else
+            echo "changed=false" >> $GITHUB_OUTPUT
+            echo "No version change detected"
+          fi
+
+  # Update version using reusable workflow
+  update-version:
+    name: Update Version
+    needs:
+      - calculate-version
+    if: needs.calculate-version.outputs.version_changed == 'true'
+    uses: ./.github/workflows/version.yml
+    with:
+      version: ${{ needs.calculate-version.outputs.version }}
+      version_tag: ${{ needs.calculate-version.outputs.version_tag }}

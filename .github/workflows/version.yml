@@ -1,0 +1,70 @@
+name: version
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: 'Version to set'
+        required: true
+        type: string
+      version_tag:
+        description: 'Version tag (e.g., v0.1.0)'
+        required: true
+        type: string
+
+run-name: "version-${{ inputs.version }}"
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  update-version:
+    name: Update Version
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Set git config
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install just
+        uses: extractions/setup-just@v3
+
+      - name: Update Cargo.toml with just
+        env:
+          NEW_VERSION: ${{ inputs.version }}
+        run: |
+          # Use just set-version-to with the calculated version
+          just set-version-to "$NEW_VERSION"
+
+          # Update Cargo.lock
+          cargo update --workspace
+
+      - name: Commit version update
+        run: |
+          git add Cargo.toml Cargo.lock
+          git commit -m "chore: release ${{ inputs.version }} [skip-version]"
+
+      - name: Create annotated tag
+        run: |
+          # Create annotated tag on the commit
+          git tag "${{ inputs.version_tag }}" -a -m "Release ${{ inputs.version }}
+
+          Changes in this version:
+          - $(git log -1 --pretty=%B | head -1)"
+
+      - name: Push changes and tag
+        run: |
+          git push origin main
+          git push origin "${{ inputs.version_tag }}"

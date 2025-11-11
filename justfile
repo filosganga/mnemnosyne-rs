@@ -4,6 +4,21 @@
 show-version:
     @git describe --tags --always --dirty 2>/dev/null || echo "0.0.0-unknown"
 
+# Set version in Cargo.toml to a specific version
+set-version-to VERSION:
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    CURRENT_VERSION=$(grep -E '^version = ' Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
+
+    echo "Current version: $CURRENT_VERSION"
+    echo "New version: {{VERSION}}"
+
+    # Update Cargo.toml
+    sed -i.bak 's/^version = ".*"/version = "{{VERSION}}"/' Cargo.toml && rm Cargo.toml.bak
+
+    echo "✓ Version updated to: {{VERSION}}"
+
 # Set version in Cargo.toml from git tags (similar to sbt-dynver)
 set-version:
     #!/usr/bin/env bash
