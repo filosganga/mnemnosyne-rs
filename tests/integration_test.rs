@@ -397,7 +397,8 @@ async fn test_unit_type_with_concurrent_requests() {
     // Should only execute once
     let executions = execution_count.load(std::sync::atomic::Ordering::SeqCst);
     assert_eq!(
-        executions, 1,
+        executions,
+        1,
         "Process with unit type should only execute once across {} concurrent requests",
         results.len()
     );
