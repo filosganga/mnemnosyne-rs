@@ -1245,6 +1245,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "mnemosyne-macros"
+version = "0.0.0-dev"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "mnemosyne-rs"
 version = "0.0.0-dev"
 dependencies = [
@@ -1252,6 +1261,7 @@ dependencies = [
  "aws-config",
  "aws-sdk-dynamodb",
  "futures",
+ "mnemosyne-macros",
  "serde",
  "serde_json",
  "thiserror",

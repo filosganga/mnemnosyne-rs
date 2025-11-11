@@ -62,3 +62,6 @@ pub use error::Error;
 pub use mnemosyne::Mnemosyne;
 pub use model::{Config, Expiration, Outcome, PollStrategy, Process, ProcessStatus};
 pub use persistence::Persistence;
+
+// Re-export procedural macros
+pub use mnemosyne_macros::protect;

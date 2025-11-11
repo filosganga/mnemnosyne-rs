@@ -1,0 +1,16 @@
+[package]
+name = "mnemosyne-macros"
+version = "0.0.0-dev"
+edition = "2021"
+description = "Procedural macros for mnemosyne-rs"
+license = "Apache-2.0"
+authors = ["Filippo De Luca", "Filippo De Luca <me@filippodeluca.com>"]
+repository = "https://github.com/filosganga/mnemosyne-rs"
+
+[lib]
+proc-macro = true
+
+[dependencies]
+syn = { version = "2.0", features = ["full"] }
+quote = "1.0"
+proc-macro2 = "1.0"
