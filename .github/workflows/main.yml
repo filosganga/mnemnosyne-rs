@@ -367,38 +367,25 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v5
         with:
-          fetch-depth: 0 # Need full history for git describe
-          token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Install just
-        uses: extractions/setup-just@v3
+          fetch-depth: 0
 
       - name: Set git config
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Update version from git
-        id: version
-        run: |
-          CURRENT_VERSION=$(grep -E '^version = ' Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
-          just set-version
-          NEW_VERSION=$(grep -E '^version = ' Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
+      - uses: paulhatch/semantic-version@v5
+        id: semantic-version
+        with:
+          user_format_type: json
+          debug: true
 
-          echo "current=$CURRENT_VERSION" >> $GITHUB_OUTPUT
-          echo "new=$NEW_VERSION" >> $GITHUB_OUTPUT
+      - name: Install just
+        uses: extractions/setup-just@v3
 
-          if [ "$CURRENT_VERSION" != "$NEW_VERSION" ]; then
-            echo "changed=true" >> $GITHUB_OUTPUT
-            # Update Cargo.lock to reflect the new version
-            cargo update --workspace
-          else
-            echo "changed=false" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Commit version update
-        if: steps.version.outputs.changed == 'true'
-        run: |
-          git add Cargo.toml Cargo.lock
-          git commit -m "chore: update version to ${{ steps.version.outputs.new }} [skip-version]"
-          git push
+      # - name: Commit version update
+      #   if: steps.version.outputs.changed == 'true'
+      #   run: |
+      #     git add Cargo.toml Cargo.lock
+      #     git commit -m "chore: update version to ${{ steps.version.outputs.new }} [skip-version]"
+      #     git push
