@@ -390,6 +390,8 @@ jobs:
 
           if [ "$CURRENT_VERSION" != "$NEW_VERSION" ]; then
             echo "changed=true" >> $GITHUB_OUTPUT
+            # Update Cargo.lock to reflect the new version
+            cargo update --workspace
           else
             echo "changed=false" >> $GITHUB_OUTPUT
           fi
