@@ -361,6 +361,8 @@ jobs:
     runs-on: ubuntu-latest
     needs: [main-checks]
     if: success() && !contains(github.event.head_commit.message, '[skip-version]')
+    permissions:
+      contents: write
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
