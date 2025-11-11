@@ -131,6 +131,9 @@ jobs:
       - name: Run integration tests
         env:
           MNEMOSYNE_DYNAMODB_ENDPOINT: http://localhost:8000
+          AWS_ACCESS_KEY_ID: test
+          AWS_SECRET_ACCESS_KEY: test
+          AWS_DEFAULT_REGION: us-east-1
         run: cargo test --tests
 
   fmt:
