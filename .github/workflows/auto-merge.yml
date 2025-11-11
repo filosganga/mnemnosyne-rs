@@ -1,0 +1,52 @@
+name: auto-merge
+
+# Auto-approve and enable auto-merge for Dependabot PRs
+#
+# How this works:
+# 1. When a Dependabot PR is opened, this workflow immediately:
+#    - Approves the PR (satisfies branch protection "required approvals")
+#    - Enables auto-merge flag (via `gh pr merge --auto`)
+# 2. The PR checks run in parallel (via pr.yml workflow)
+# 3. GitHub automatically merges the PR once all requirements are met:
+#    - All required status checks pass ✓
+#    - Required approvals present ✓
+#    - No merge conflicts ✓
+#
+# The `synchronize` trigger handles cases where Dependabot updates the PR
+# (e.g., rebasing) - it re-approves and re-enables auto-merge.
+#
+# Note: `gh pr merge --auto` does NOT merge immediately - it only sets a flag.
+# The actual merge happens automatically when branch protection rules are satisfied.
+
+on:
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+
+permissions:
+  pull-requests: write
+  contents: write
+
+jobs:
+  auto-approve:
+    runs-on: ubuntu-latest
+    if: github.actor == 'dependabot[bot]'
+    steps:
+      - name: Approve Dependabot PR
+        run: gh pr review --approve "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  auto-merge:
+    runs-on: ubuntu-latest
+    needs: [auto-approve]
+    if: github.actor == 'dependabot[bot]'
+    steps:
+      - name: Enable auto-merge for Dependabot PRs
+        run: gh pr merge --auto --squash "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
