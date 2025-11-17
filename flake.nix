@@ -56,6 +56,9 @@
           ];
 
           shellHook = ''
+            # To remove warning: unhandled Platform key FamilyDisplayName   
+            unset DEVELOPER_DIR
+            
             # Rust environment
             export RUST_BACKTRACE=1
 
